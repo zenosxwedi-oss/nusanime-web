@@ -7,36 +7,39 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#0F1420;color:#E9ECF3;min-height:100vh}
-header{position:sticky;top:0;z-index:9;background:#0A0E17ee;backdrop-filter:blur(8px);border-bottom:1px solid #232B3D;padding:12px 16px;display:flex;gap:10px;align-items:center}
+header{position:sticky;top:0;z-index:9;background:#0A0E17ee;backdrop-filter:blur(8px);border-bottom:1px solid #232B3D;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 header h1{font-size:18px;cursor:pointer}
 header h1 .n{color:#FF4757}
-#q{flex:1;max-width:420px;background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:10px;padding:10px 14px;font-size:14px}
+#q{flex:1;min-width:160px;max-width:420px;background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:10px;padding:10px 14px;font-size:14px}
+nav{display:flex;gap:6px;overflow-x:auto;width:100%;padding-bottom:2px}
+nav button{background:#1A2130;border:1px solid #2A3550;color:#9AA3B5;border-radius:8px;padding:7px 14px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+nav button.on{background:#FF4757;border-color:#FF4757;color:#fff;font-weight:700}
 main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
 .sect{font-size:16px;font-weight:700;margin:20px 0 12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
-.card{cursor:pointer}
+.card{cursor:pointer;position:relative}
 .card img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:10px;background:#1A2130}
 .card .t{font-size:12.5px;margin-top:6px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.badge{position:absolute;background:#FF4757;color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;margin:6px}
-.card{position:relative}
+.card .m{font-size:11px;color:#9AA3B5;margin-top:2px}
 #player{position:fixed;inset:0;background:#0A0E17;z-index:20;display:none;flex-direction:column}
 #player.open{display:flex}
-.pbar{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.pbar{display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap}
 .pbar button{background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px}
 .pbar button.on{background:#FF4757;border-color:#FF4757}
-#video{flex:1;width:100%;background:#000;min-height:0}
-.pinfo{padding:10px 16px;font-size:14px}
+#frameWrap{flex:1;min-height:0;background:#000;display:flex;align-items:center;justify-content:center}
+#frameWrap iframe{width:100%;height:100%;border:0}
+#frameWrap video{width:100%;height:100%;background:#000}
 .back{cursor:pointer;color:#FF4757;font-weight:600;background:none;border:none;font-size:15px}
-.pager{display:flex;gap:8px;justify-content:center;margin:24px 0 8px}
-.pager button{background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:8px;padding:8px 16px;cursor:pointer}
-.pager button:disabled{opacity:.4}
 .loading{text-align:center;color:#9AA3B5;padding:30px}
+.eplist{display:flex;flex-wrap:wrap;gap:8px}
+.epbtn{background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:10px;padding:10px 14px;font-size:13px;cursor:pointer}
 </style>
 </head>
 <body>
 <header>
   <h1 onclick="home()">RED <span class="n">NUSANIME</span></h1>
   <input id="q" placeholder="Cari anime..." onkeydown="if(event.key==='Enter')search()">
+  <nav id="nav"></nav>
 </header>
 <main id="main"><div class="loading">Memuat...</div></main>
 
@@ -46,173 +49,195 @@ main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
     <span id="ptitle" style="flex:1;font-weight:600"></span>
     <span id="epnav"></span>
   </div>
-  <video id="video" controls playsinline></video>
-  <div class="pbar" id="quals"></div>
+  <div id="frameWrap"></div>
+  <div class="pbar" id="quals" style="justify-content:center"></div>
 </div>
 
 <script>
-const API = location.origin + "/api/";
+const API = "https://www.sankavollerei.web.id/anime/samehadaku/";
+let curEps = [], curIdx = -1, curMovieTitle = "";
+
 async function api(p){
-  const r = await fetch(API+p);
-  return r.json();
+  const r = await fetch(API+p, {headers:{"Accept":"application/json"}});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const j = await r.json();
+  if(j.status && j.status !== "success" && !j.data) throw new Error(j.message||"API error");
+  return j.data !== undefined ? j.data : j;
 }
-function img(u){
-  if(!u) return "";
-  let full = u.startsWith("http") ? u : "https://xyz-api.animein.net" + u;
-  return full.replace(/([^:])\/\//g, "$1/");
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+function card(a, onclick){
+  const poster = a.poster || a.image_poster || "";
+  return `<div class="card" onclick="${onclick}">
+    <img loading="lazy" src="${esc(poster)}" onerror="this.style.background='#232B3D'">
+    <div class="t">${esc(a.title)}</div>
+    ${a.episodes?`<div class="m">Ep ${esc(a.episodes)}</div>`:""}
+    ${a.score?`<div class="m">★ ${esc(String(a.score).replace("★",""))}</div>`:""}
+  </div>`;
 }
-let page = 1;
-function home(){ page=1; document.getElementById('q').value=""; loadHome(); }
-async function loadHome(){
+function grid(list, idFn){
+  return `<div class="grid">` + list.map(a=>card(a, idFn(a))).join("") + `</div>`;
+}
+function setNav(active){
+  const items = [["home","Beranda"],["ongoing","Ongoing"],["completed","Tamat"],["schedule","Jadwal"]];
+  document.getElementById('nav').innerHTML = items.map(([k,l])=>
+    `<button class="${active===k?'on':''}" onclick="${k==='home'?'home()':k+'()'}">${l}</button>`).join("");
+}
+async function home(){
+  setNav("home");
+  document.getElementById('q').value="";
   const m = document.getElementById('main');
   m.innerHTML = '<div class="loading">Memuat...</div>';
   try{
-    const d = await api("data/home/list");
-    const h = d.data;
+    const d = await api("home");
     let html = "";
-    const secs = [["update","Update Terbaru"],["hot","Hot"],["new","Baru"],["today","Hari Ini"],["popular","Populer"]];
+    const secs = [["recent","Update Terbaru"],["top10","Top 10"],["batch","Batch"],["movie","Movie"]];
     for(const [k,label] of secs){
-      const list = (h[k]||[]).filter(x=>x.image_poster||x.poster);
+      const list = ((d[k]||{}).animeList)||[];
       if(!list.length) continue;
-      html += `<div class="sect">${label}</div><div class="grid">` + list.slice(0,12).map(a=>`
-        <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
-          <img loading="lazy" src="${img(a.image_poster||a.poster)}" onerror="imgFallback(this)">
-          <div class="t">${esc(a.title)}</div>
-        </div>`).join("") + `</div>`;
+      html += `<div class="sect">${label}</div>` + grid(list, a=>`openDetail('${esc(a.animeId||a.href)}')`);
     }
     m.innerHTML = html || '<div class="loading">Belum ada data.</div>';
-  }catch(e){ m.innerHTML='<div class="loading">Gagal memuat. Coba muat ulang.</div>'; }
+  }catch(e){ console.error(e); m.innerHTML='<div class="loading">Gagal memuat: '+esc(e.message)+'</div>'; }
 }
-function imgFallback(el){
-  if(!el.dataset.fb){
-    el.dataset.fb="1";
-    const m = el.src.match(/https?:\/\/[^/]+(.*)/);
-    if(m){ el.src = "https://wsrv.nl/?url=" + encodeURIComponent("https://xyz-api.animein.net"+m[1]) + "&output=jpg"; return; }
-  }
-  el.style.visibility="hidden";
+async function ongoing(){ cat("ongoing","Ongoing"); }
+async function completed(){ cat("completed","Anime Tamat"); }
+async function cat(ep, label){
+  setNav(ep==="ongoing"?"ongoing":"completed");
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">Memuat...</div>';
+  try{
+    const d = await api(ep);
+    const list = (d&&d.animeList)||[];
+    m.innerHTML = `<div class="sect">${label}</div>` + grid(list, a=>`openDetail('${esc(a.animeId||a.href)}')`);
+  }catch(e){ m.innerHTML='<div class="loading">Gagal memuat.</div>'; }
 }
-function esc(s){ return (s||"").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+async function schedule(){
+  setNav("schedule");
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">Memuat...</div>';
+  try{
+    const d = await api("schedule");
+    let html = "";
+    for(const day of (Array.isArray(d)?d:(d.days||d.schedule||[]))){
+      const list = day.animeList || day.list || [];
+      if(!list.length) continue;
+      html += `<div class="sect">${esc(day.day||day.title||"")}</div>` + grid(list, a=>`openDetail('${esc(a.animeId||a.href)}')`);
+    }
+    m.innerHTML = html || '<div class="loading">Jadwal kosong.</div>';
+  }catch(e){ m.innerHTML='<div class="loading">Gagal memuat jadwal.</div>'; }
+}
 async function search(){
   const q = document.getElementById('q').value.trim();
-  if(!q) return // Pre-warm Cloudflare clearance for image/video hosts (auto-solve challenge invisibly)
-function warmCF(){
-  ["https://xyz-api.animein.net/","https://storages.animein.net/","https://animein.net/"].forEach(h=>{
-    const f=document.createElement("iframe");
-    f.style.cssText="width:1px;height:1px;opacity:0;position:fixed;bottom:0;right:0;border:0";
-    f.src=h; document.body.appendChild(f);
-    setTimeout(function(){ f.remove(); }, 15000);
-  });
-}
-warmCF();
-home();
+  if(!q) return home();
+  setNav("");
   const m = document.getElementById('main');
   m.innerHTML = '<div class="loading">Mencari...</div>';
   try{
-    const d = await api("3/2/explore/movie?keyword="+encodeURIComponent(q));
-    const list = d.data?.movie || [];
-    m.innerHTML = `<div class="sect">Hasil: ${esc(q)}</div><div class="grid">` + list.map(a=>`
-      <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
-        <img loading="lazy" src="${img(a.image_poster)}" onerror="imgFallback(this)">
-        <div class="t">${esc(a.title)}</div>
-      </div>`).join("") + `</div>`;
+    const d = await api("search?q="+encodeURIComponent(q));
+    const list = (d&&d.animeList)||[];
+    m.innerHTML = `<div class="sect">Hasil: ${esc(q)}</div>` + grid(list, a=>`openDetail('${esc(a.animeId||a.href)}')`);
   }catch(e){ m.innerHTML='<div class="loading">Gagal mencari.</div>'; }
 }
-let curMovie = null, curEp = null;
-async function openDetail(id, title){
+async function openDetail(id){
+  if(!id) return;
+  if(id.startsWith("/")) id = id.split("/").pop();
   const m = document.getElementById('main');
   m.innerHTML = '<div class="loading">Memuat...</div>';
   try{
-    const d = await api("3/2/movie/detail/"+id);
-    const mv = Array.isArray(d.data.movie)? d.data.movie[0] : d.data.movie;
-    let eps = [];
-    try {
-      const seasons = (d.data.season && typeof d.data.season === 'object' && !Array.isArray(d.data.season) && Object.keys(d.data.season).length)
-        ? Object.keys(d.data.season) : ["1"];
-      for (const sn of seasons) {
-        const er = await api("3/2/movie/episode/" + id + "/" + sn);
-        let list = (er.data && er.data.episode) || [];
-        if (!Array.isArray(list)) list = [];
-        eps = eps.concat(list);
-      }
-      if (!eps.length) {
-        let raw = d.data.episode;
-        if (Array.isArray(raw)) eps = raw;
-        else if (raw && raw.id) eps = [raw];
-      }
-    } catch(e) {
-      let raw = d.data.episode;
-      if (Array.isArray(raw)) eps = raw;
-      else if (raw && raw.id) eps = [raw];
-    }
-    eps = eps.filter(e => e && e.id);
-    eps.sort((a,b) => (parseInt(a.index)||0) - (parseInt(b.index)||0));
+    const d = await api("anime/"+id);
+    const eps = (d.episodeList||[]).slice().reverse();
+    let gen = "";
+    (d.genreList||[]).forEach(g=>{ gen += (gen?", ":"") + (g.title||g.genreTitle||""); });
+    let syn = "";
+    const sp = d.synopsis;
+    if(typeof sp === "string") syn = sp;
+    else if(sp && sp.paragraphs) syn = sp.paragraphs.join("\n\n");
     m.innerHTML = `
       <div style="display:flex;gap:16px;flex-wrap:wrap">
-        <img src="${img(mv.image_poster)}" style="width:180px;border-radius:12px" onerror="imgFallback(this)">
+        <img src="${esc(d.poster)}" style="width:170px;border-radius:12px;background:#1A2130" onerror="this.style.visibility='hidden'">
         <div style="flex:1;min-width:220px">
-          <div class="sect" style="margin-top:0">${esc(mv.title)}</div>
-          <div style="color:#9AA3B5;font-size:13px">${esc(mv.type||"")} • ${esc(mv.status||"")} • ${esc(mv.year||"")}</div>
-          <p style="margin-top:10px;font-size:13.5px;line-height:1.6;color:#C4C9D6">${esc(mv.synopsis)}</p>
+          <div class="sect" style="margin-top:0">${esc(d.title)}</div>
+          <div style="color:#9AA3B5;font-size:13px">${esc(d.type||"")} • ${esc(d.status||"")} • ${esc(d.season||"")} ${d.score&&d.score.value?" • ★ "+esc(d.score.value):""}</div>
+          ${gen?`<div style="color:#FF4757;font-size:12px;margin-top:6px">${esc(gen)}</div>`:""}
+          <p style="margin-top:10px;font-size:13.5px;line-height:1.6;color:#C4C9D6;white-space:pre-line">${esc(syn)}</p>
         </div>
       </div>
       <div class="sect">Episode (${eps.length})</div>
-      <div id="eps"></div>`;
-    const box = m.querySelector('#eps');
-    box.innerHTML = eps.map(e=>`
-      <div class="card ep" style="display:inline-block;margin:0 8px 8px 0" onclick="openEp(${e.id},'${esc(mv.title)}','Ep ${e.index}',${id})">
-        <div style="background:#1A2130;border:1px solid #2A3550;border-radius:10px;padding:10px 14px;font-size:13px">Episode ${e.index}</div>
-      </div>`).join("");
+      <div class="eplist" id="eps"></div>`;
     window.scrollTo(0,0);
-  }catch(e){ m.innerHTML='<div class="loading">Gagal memuat detail.</div>'; }
+    curEps = eps; curMovieTitle = d.title;
+    document.getElementById('eps').innerHTML = eps.map((e,i)=>
+      `<button class="epbtn" onclick="openEp(${i})">Episode ${esc(e.episodeNum ?? e.index ?? (i+1))}</button>`).join("");
+  }catch(e){ console.error(e); m.innerHTML='<div class="loading">Gagal memuat detail.</div>'; }
 }
-async function openEp(epId, title, epLabel, movieId){
+async function openEp(i){
+  const ep = curEps[i];
+  if(!ep || !ep.episodeId) return;
+  curIdx = i;
   const p = document.getElementById('player');
   p.classList.add('open');
-  document.getElementById('ptitle').textContent = title + " — " + epLabel;
-  const v = document.getElementById('video');
-  v.src = ""; v.load();
+  document.getElementById('ptitle').textContent = curMovieTitle + " — Episode " + (ep.episodeNum ?? ep.index ?? (i+1));
+  const fw = document.getElementById('frameWrap');
+  fw.innerHTML = '<div class="loading">Memuat stream...</div>';
+  document.getElementById('quals').innerHTML = "";
   try{
-    const d = await api("3/2/episode/streamnew/"+epId);
-    const servers = d.data?.server || [];
+    const d = await api("episode/"+ep.episodeId);
     const q = document.getElementById('quals');
     q.innerHTML = "";
-    const qmap = {};
-    for(const s of servers){ (qmap[s.quality] = qmap[s.quality]||[]).push(s); }
-    let first = true;
-    for(const quality in qmap){
-      const b = document.createElement('button');
-      b.textContent = quality;
-      if(first){ b.classList.add('on'); playUrl(qmap[quality][0].link); first=false; }
-      b.onclick = () => {
-        q.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-        b.classList.add('on'); playUrl(qmap[quality][0].link);
-      };
-      q.appendChild(b);
+    let candidates = [];
+    for(const grp of ((d.server&&d.server.qualities)||[])){
+      for(const sv of (grp.serverList||[])){
+        candidates.push({label: grp.title+" · "+sv.title, sid: sv.serverId});
+      }
     }
-    // prev/next
+    if(d.defaultStreamingUrl) candidates.unshift({label:"Blogger", url:d.defaultStreamingUrl, iframe:true});
+    const play = (c) => {
+      fw.innerHTML = "";
+      if(c.iframe){
+        const f = document.createElement('iframe');
+        f.src = c.url; f.allow = "autoplay; fullscreen"; f.allowFullscreen = true;
+        fw.appendChild(f);
+      } else {
+        resolveServer(c.sid, fw);
+      }
+      q.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    };
+    candidates.forEach((c)=>{
+      const b = document.createElement('button');
+      b.textContent = c.label;
+      b.onclick = () => play(c);
+      q.appendChild(b);
+    });
+    if(candidates.length) play(candidates[0]);
+    else fw.innerHTML = '<div class="loading" style="color:#f87171">Stream tidak tersedia.</div>';
     const nav = document.getElementById('epnav');
     nav.innerHTML = "";
-    const nx = d.data?.episode_next;
-    if(nx){ const b=document.createElement('button'); b.textContent="Episode Selanjutnya →"; b.onclick=()=>openEp(nx.id,title,"Ep "+nx.index,movieId); nav.appendChild(b); }
-    if(!servers.length){ v.replaceWith(Object.assign(document.createElement('div'),{textContent:"Server tidak tersedia untuk episode ini.",style:"padding:30px;color:#f87171"})); }
-  }catch(e){ alert("Gagal memuat stream."); }
-}
-function playUrl(u){
-  const v = document.getElementById('video');
-  v.onerror = function(){
-    // retry once through alternate host pattern
-    if(!v.dataset.r){
-      v.dataset.r = "1";
-      let alt = u.replace("storages.animein.net", "animein.net").replace("/storage", "/storage");
-      v.src = alt; v.load(); v.play().catch(function(){});
+    if(d.hasPrevEpisode && d.prevEpisode){
+      const pi = curEps.findIndex(x=>x.episodeId===d.prevEpisode.episodeId);
+      const b=document.createElement('button'); b.textContent="← Sebelumnya";
+      b.onclick=()=>{ if(pi>=0) openEp(pi); }; nav.appendChild(b);
     }
-  };
-  v.src = u; v.load(); v.play().catch(function(){});
+    if(d.hasNextEpisode && d.nextEpisode){
+      const ni = curEps.findIndex(x=>x.episodeId===d.nextEpisode.episodeId);
+      const b=document.createElement('button'); b.textContent="Selanjutnya →";
+      b.onclick=()=>{ if(ni>=0) openEp(ni); }; nav.appendChild(b);
+    }
+  }catch(e){ console.error(e); fw.innerHTML='<div class="loading" style="color:#f87171">Gagal memuat stream.</div>'; }
+}
+async function resolveServer(sid, fw){
+  fw.innerHTML = '<div class="loading">Memuat server...</div>';
+  try{
+    const d = await api("server/"+sid);
+    const url = d && d.url;
+    if(!url){ fw.innerHTML='<div class="loading" style="color:#f87171">Server tidak merespon.</div>'; return; }
+    const f = document.createElement('iframe');
+    f.src = url; f.allow = "autoplay; fullscreen"; f.allowFullscreen = true;
+    fw.innerHTML = ""; fw.appendChild(f);
+  }catch(e){ fw.innerHTML='<div class="loading" style="color:#f87171">Gagal memuat server.</div>'; }
 }
 function closePlayer(){
-  const p = document.getElementById('player');
-  p.classList.remove('open');
-  const v = document.getElementById('video'); v.pause(); v.src="";
+  document.getElementById('player').classList.remove('open');
+  document.getElementById('frameWrap').innerHTML = "";
 }
 home();
 </script>
