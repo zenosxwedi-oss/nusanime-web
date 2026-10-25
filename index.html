@@ -186,7 +186,15 @@ async function openEp(epId, title, epLabel, movieId){
 }
 function playUrl(u){
   const v = document.getElementById('video');
-  v.src = u; v.load(); v.play().catch(()=>{});
+  v.onerror = function(){
+    // retry once through alternate host pattern
+    if(!v.dataset.r){
+      v.dataset.r = "1";
+      let alt = u.replace("storages.animein.net", "animein.net").replace("/storage", "/storage");
+      v.src = alt; v.load(); v.play().catch(function(){});
+    }
+  };
+  v.src = u; v.load(); v.play().catch(function(){});
 }
 function closePlayer(){
   const p = document.getElementById('player');
