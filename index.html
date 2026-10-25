@@ -94,7 +94,17 @@ function imgFallback(el){
 function esc(s){ return (s||"").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
 async function search(){
   const q = document.getElementById('q').value.trim();
-  if(!q) return home();
+  if(!q) return // Pre-warm Cloudflare clearance for image/video hosts (auto-solve challenge invisibly)
+function warmCF(){
+  ["https://xyz-api.animein.net/","https://storages.animein.net/","https://animein.net/"].forEach(h=>{
+    const f=document.createElement("iframe");
+    f.style.cssText="width:1px;height:1px;opacity:0;position:fixed;bottom:0;right:0;border:0";
+    f.src=h; document.body.appendChild(f);
+    setTimeout(function(){ f.remove(); }, 15000);
+  });
+}
+warmCF();
+home();
   const m = document.getElementById('main');
   m.innerHTML = '<div class="loading">Mencari...</div>';
   try{
