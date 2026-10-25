@@ -124,8 +124,14 @@ async function openDetail(id, title){
   try{
     const d = await api("3/2/movie/detail/"+id);
     const mv = Array.isArray(d.data.movie)? d.data.movie[0] : d.data.movie;
-    let eps = d.data.episode || [];
-    if (!Array.isArray(eps)) eps = Object.values(eps);
+    let raw = d.data.episode;
+    let eps = [];
+    if (Array.isArray(raw)) eps = raw;
+    else if (raw && typeof raw === 'object') {
+      // could be a single episode object or a map of episodes
+      if (raw.id) eps = [raw];
+      else eps = Object.values(raw).filter(v => v && v.id);
+    }
     eps = eps.filter(e => e && e.id);
     m.innerHTML = `
       <div style="display:flex;gap:16px;flex-wrap:wrap">
