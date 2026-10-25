@@ -124,7 +124,9 @@ async function openDetail(id, title){
   try{
     const d = await api("3/2/movie/detail/"+id);
     const mv = Array.isArray(d.data.movie)? d.data.movie[0] : d.data.movie;
-    const eps = d.data.episode || [];
+    let eps = d.data.episode || [];
+    if (!Array.isArray(eps)) eps = Object.values(eps);
+    eps = eps.filter(e => e && e.id);
     m.innerHTML = `
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         <img src="${img(mv.image_poster)}" style="width:180px;border-radius:12px" onerror="imgFallback(this)">
