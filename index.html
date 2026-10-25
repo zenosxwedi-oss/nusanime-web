@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nusanime — Nonton Anime</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#0F1420;color:#E9ECF3;min-height:100vh}
+header{position:sticky;top:0;z-index:9;background:#0A0E17ee;backdrop-filter:blur(8px);border-bottom:1px solid #232B3D;padding:12px 16px;display:flex;gap:10px;align-items:center}
+header h1{font-size:18px;cursor:pointer}
+header h1 .n{color:#FF4757}
+#q{flex:1;max-width:420px;background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:10px;padding:10px 14px;font-size:14px}
+main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+.sect{font-size:16px;font-weight:700;margin:20px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
+.card{cursor:pointer}
+.card img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:10px;background:#1A2130}
+.card .t{font-size:12.5px;margin-top:6px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.badge{position:absolute;background:#FF4757;color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;margin:6px}
+.card{position:relative}
+#player{position:fixed;inset:0;background:#0A0E17;z-index:20;display:none;flex-direction:column}
+#player.open{display:flex}
+.pbar{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.pbar button{background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px}
+.pbar button.on{background:#FF4757;border-color:#FF4757}
+#video{flex:1;width:100%;background:#000;min-height:0}
+.pinfo{padding:10px 16px;font-size:14px}
+.back{cursor:pointer;color:#FF4757;font-weight:600;background:none;border:none;font-size:15px}
+.pager{display:flex;gap:8px;justify-content:center;margin:24px 0 8px}
+.pager button{background:#1A2130;border:1px solid #2A3550;color:#E9ECF3;border-radius:8px;padding:8px 16px;cursor:pointer}
+.pager button:disabled{opacity:.4}
+.loading{text-align:center;color:#9AA3B5;padding:30px}
+</style>
+</head>
+<body>
+<header>
+  <h1 onclick="home()">RED <span class="n">NUSANIME</span></h1>
+  <input id="q" placeholder="Cari anime..." onkeydown="if(event.key==='Enter')search()">
+</header>
+<main id="main"><div class="loading">Memuat...</div></main>
+
+<div id="player">
+  <div class="pbar">
+    <button class="back" onclick="closePlayer()">✕ Tutup</button>
+    <span id="ptitle" style="flex:1;font-weight:600"></span>
+    <span id="epnav"></span>
+  </div>
+  <video id="video" controls playsinline></video>
+  <div class="pbar" id="quals"></div>
+</div>
+
+<script>
+const API = location.origin + "/api/";
+async function api(p){
+  const r = await fetch(API+p);
+  return r.json();
+}
+function img(u){
+  if(!u) return "";
+  if(u.startsWith("http")) return u;
+  return "https://animein.net" + u;
+}
+let page = 1;
+function home(){ page=1; document.getElementById('q').value=""; loadHome(); }
+async function loadHome(){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">Memuat...</div>';
+  try{
+    const d = await api("data/home/list");
+    const h = d.data;
+    let html = "";
+    const secs = [["update","Update Terbaru"],["hot","Hot"],["new","Baru"],["today","Hari Ini"],["popular","Populer"]];
+    for(const [k,label] of secs){
+      const list = (h[k]||[]).filter(x=>x.image_poster||x.poster);
+      if(!list.length) continue;
+      html += `<div class="sect">${label}</div><div class="grid">` + list.slice(0,12).map(a=>`
+        <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
+          <img loading="lazy" src="${img(a.image_poster||a.poster)}" onerror="this.style.visibility='hidden'">
+          <div class="t">${esc(a.title)}</div>
+        </div>`).join("") + `</div>`;
+    }
+    m.innerHTML = html || '<div class="loading">Belum ada data.</div>';
+  }catch(e){ m.innerHTML='<div class="loading">Gagal memuat. Coba muat ulang.</div>'; }
+}
+function esc(s){ return (s||"").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+async function search(){
+  const q = document.getElementById('q').value.trim();
+  if(!q) return home();
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">Mencari...</div>';
+  try{
+    const d = await api("3/2/explore/movie?keyword="+encodeURIComponent(q)+"&page=1");
+    const list = d.data?.movie || [];
+    m.innerHTML = `<div class="sect">Hasil: ${esc(q)}</div><div class="grid">` + list.map(a=>`
+      <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
+        <img loading="lazy" src="${img(a.image_poster)}" onerror="this.style.visibility='hidden'">
+        <div class="t">${esc(a.title)}</div>
+      </div>`).join("") + `</div>`;
+  }catch(e){ m.innerHTML='<div class="loading">Gagal mencari.</div>'; }
+}
+let curMovie = null, curEp = null;
+async function openDetail(id, title){
+  const m = document.getElementById('main');
+  m.innerHTML = '<div class="loading">Memuat...</div>';
+  try{
+    const d = await api("3/2/movie/detail/"+id);
+    const mv = Array.isArray(d.data.movie)? d.data.movie[0] : d.data.movie;
+    const eps = d.data.episode || [];
+    m.innerHTML = `
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <img src="${img(mv.image_poster)}" style="width:180px;border-radius:12px" onerror="this.style.visibility='hidden'">
+        <div style="flex:1;min-width:220px">
+          <div class="sect" style="margin-top:0">${esc(mv.title)}</div>
+          <div style="color:#9AA3B5;font-size:13px">${esc(mv.type||"")} • ${esc(mv.status||"")} • ${esc(mv.year||"")}</div>
+          <p style="margin-top:10px;font-size:13.5px;line-height:1.6;color:#C4C9D6">${esc(mv.synopsis)}</p>
+        </div>
+      </div>
+      <div class="sect">Episode (${eps.length})</div>
+      <div id="eps"></div>`;
+    const box = m.querySelector('#eps');
+    box.innerHTML = eps.map(e=>`
+      <div class="card ep" style="display:inline-block;margin:0 8px 8px 0" onclick="openEp(${e.id},'${esc(mv.title)}','Ep ${e.index}',${id})">
+        <div style="background:#1A2130;border:1px solid #2A3550;border-radius:10px;padding:10px 14px;font-size:13px">Episode ${e.index}</div>
+      </div>`).join("");
+    window.scrollTo(0,0);
+  }catch(e){ m.innerHTML='<div class="loading">Gagal memuat detail.</div>'; }
+}
+async function openEp(epId, title, epLabel, movieId){
+  const p = document.getElementById('player');
+  p.classList.add('open');
+  document.getElementById('ptitle').textContent = title + " — " + epLabel;
+  const v = document.getElementById('video');
+  v.src = ""; v.load();
+  try{
+    const d = await api("3/2/episode/streamnew/"+epId);
+    const servers = d.data?.server || [];
+    const q = document.getElementById('quals');
+    q.innerHTML = "";
+    const qmap = {};
+    for(const s of servers){ (qmap[s.quality] = qmap[s.quality]||[]).push(s); }
+    let first = true;
+    for(const quality in qmap){
+      const b = document.createElement('button');
+      b.textContent = quality;
+      if(first){ b.classList.add('on'); playUrl(qmap[quality][0].link); first=false; }
+      b.onclick = () => {
+        q.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on'); playUrl(qmap[quality][0].link);
+      };
+      q.appendChild(b);
+    }
+    // prev/next
+    const nav = document.getElementById('epnav');
+    nav.innerHTML = "";
+    const nx = d.data?.episode_next;
+    if(nx){ const b=document.createElement('button'); b.textContent="Episode Selanjutnya →"; b.onclick=()=>openEp(nx.id,title,"Ep "+nx.index,movieId); nav.appendChild(b); }
+    if(!servers.length){ v.replaceWith(Object.assign(document.createElement('div'),{textContent:"Server tidak tersedia untuk episode ini.",style:"padding:30px;color:#f87171"})); }
+  }catch(e){ alert("Gagal memuat stream."); }
+}
+function playUrl(u){
+  const v = document.getElementById('video');
+  v.src = u; v.load(); v.play().catch(()=>{});
+}
+function closePlayer(){
+  const p = document.getElementById('player');
+  p.classList.remove('open');
+  const v = document.getElementById('video'); v.pause(); v.src="";
+}
+home();
+</script>
+</body>
+</html>
