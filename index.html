@@ -90,7 +90,7 @@ async function search(){
   const m = document.getElementById('main');
   m.innerHTML = '<div class="loading">Mencari...</div>';
   try{
-    const d = await api("3/2/explore/movie?keyword="+encodeURIComponent(q)+"&page=1");
+    const d = await api("3/2/explore/movie?keyword="+encodeURIComponent(q));
     const list = d.data?.movie || [];
     m.innerHTML = `<div class="sect">Hasil: ${esc(q)}</div><div class="grid">` + list.map(a=>`
       <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
