@@ -76,12 +76,20 @@ async function loadHome(){
       if(!list.length) continue;
       html += `<div class="sect">${label}</div><div class="grid">` + list.slice(0,12).map(a=>`
         <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
-          <img loading="lazy" src="${img(a.image_poster||a.poster)}" onerror="this.style.visibility='hidden'">
+          <img loading="lazy" src="${img(a.image_poster||a.poster)}" onerror="imgFallback(this)">
           <div class="t">${esc(a.title)}</div>
         </div>`).join("") + `</div>`;
     }
     m.innerHTML = html || '<div class="loading">Belum ada data.</div>';
   }catch(e){ m.innerHTML='<div class="loading">Gagal memuat. Coba muat ulang.</div>'; }
+}
+function imgFallback(el){
+  if(!el.dataset.fb){
+    el.dataset.fb="1";
+    const m = el.src.match(/https?:\/\/[^/]+(.*)/);
+    if(m){ el.src = "https://wsrv.nl/?url=" + encodeURIComponent("https://xyz-api.animein.net"+m[1]) + "&output=jpg"; return; }
+  }
+  el.style.visibility="hidden";
 }
 function esc(s){ return (s||"").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
 async function search(){
@@ -94,7 +102,7 @@ async function search(){
     const list = d.data?.movie || [];
     m.innerHTML = `<div class="sect">Hasil: ${esc(q)}</div><div class="grid">` + list.map(a=>`
       <div class="card" onclick="openDetail(${a.id},'${esc(a.title)}')">
-        <img loading="lazy" src="${img(a.image_poster)}" onerror="this.style.visibility='hidden'">
+        <img loading="lazy" src="${img(a.image_poster)}" onerror="imgFallback(this)">
         <div class="t">${esc(a.title)}</div>
       </div>`).join("") + `</div>`;
   }catch(e){ m.innerHTML='<div class="loading">Gagal mencari.</div>'; }
@@ -109,7 +117,7 @@ async function openDetail(id, title){
     const eps = d.data.episode || [];
     m.innerHTML = `
       <div style="display:flex;gap:16px;flex-wrap:wrap">
-        <img src="${img(mv.image_poster)}" style="width:180px;border-radius:12px" onerror="this.style.visibility='hidden'">
+        <img src="${img(mv.image_poster)}" style="width:180px;border-radius:12px" onerror="imgFallback(this)">
         <div style="flex:1;min-width:220px">
           <div class="sect" style="margin-top:0">${esc(mv.title)}</div>
           <div style="color:#9AA3B5;font-size:13px">${esc(mv.type||"")} • ${esc(mv.status||"")} • ${esc(mv.year||"")}</div>
