@@ -124,15 +124,28 @@ async function openDetail(id, title){
   try{
     const d = await api("3/2/movie/detail/"+id);
     const mv = Array.isArray(d.data.movie)? d.data.movie[0] : d.data.movie;
-    let raw = d.data.episode;
     let eps = [];
-    if (Array.isArray(raw)) eps = raw;
-    else if (raw && typeof raw === 'object') {
-      // could be a single episode object or a map of episodes
-      if (raw.id) eps = [raw];
-      else eps = Object.values(raw).filter(v => v && v.id);
+    try {
+      const seasons = (d.data.season && typeof d.data.season === 'object' && !Array.isArray(d.data.season) && Object.keys(d.data.season).length)
+        ? Object.keys(d.data.season) : ["1"];
+      for (const sn of seasons) {
+        const er = await api("3/2/movie/episode/" + id + "/" + sn);
+        let list = (er.data && er.data.episode) || [];
+        if (!Array.isArray(list)) list = [];
+        eps = eps.concat(list);
+      }
+      if (!eps.length) {
+        let raw = d.data.episode;
+        if (Array.isArray(raw)) eps = raw;
+        else if (raw && raw.id) eps = [raw];
+      }
+    } catch(e) {
+      let raw = d.data.episode;
+      if (Array.isArray(raw)) eps = raw;
+      else if (raw && raw.id) eps = [raw];
     }
     eps = eps.filter(e => e && e.id);
+    eps.sort((a,b) => (parseInt(a.index)||0) - (parseInt(b.index)||0));
     m.innerHTML = `
       <div style="display:flex;gap:16px;flex-wrap:wrap">
         <img src="${img(mv.image_poster)}" style="width:180px;border-radius:12px" onerror="imgFallback(this)">
