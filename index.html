@@ -58,8 +58,8 @@ async function api(p){
 }
 function img(u){
   if(!u) return "";
-  if(u.startsWith("http")) return u;
-  return "https://animein.net" + u;
+  let full = u.startsWith("http") ? u : "https://xyz-api.animein.net" + u;
+  return full.replace(/([^:])\/\//g, "$1/");
 }
 let page = 1;
 function home(){ page=1; document.getElementById('q').value=""; loadHome(); }
